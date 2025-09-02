@@ -2,13 +2,13 @@ import requests
 import sys
 import time
 import numpy as np
-# import csv  <--- 已移除
 from tqdm import tqdm
 
 # --- API 端點 ---
 INSTRUMENTS_URL = "https://www.okx.com/api/v5/public/instruments"
 KLINE_URL = "https://www.okx.com/api/v5/market/history-candles"
 
+# ... (上方的函式 get_spot_instruments_by_quote, get_kline_data, analyze_triangle_consolidation 保持不變，此處省略) ...
 def get_spot_instruments_by_quote(quote_currency):
     params = {'instType': 'SPOT'}
     try:
@@ -63,24 +63,37 @@ def analyze_triangle_consolidation(kline_data, period=60):
 
 # --- 主程式執行區 (已修改) ---
 if __name__ == "__main__":
+    # vvv --- 新增的輔助說明邏輯 --- vvv
+    # 檢查使用者是否提供了至少一個必要的參數（報價貨幣）
     if len(sys.argv) < 2:
-        print("錯誤：請提供報價貨幣作為參數。")
-        print("完整用法: python get_instruments.py [貨幣] [數量(可選)]")
-        print("範例: python get_instruments.py USDT")
-        sys.exit()
+        # 如果沒有，就印出詳細的使用說明
+        print("\n" + "="*60)
+        print(" 掃描器指令用法說明：")
+        print("   python get_instruments.py [報價貨幣] [掃描數量(可選)]")
+        print("\n [參數說明]")
+        print("   [報價貨幣]: (必須) 您想掃描的交易對類型。範例: USDT, BTC, TWD")
+        print("   [掃描數量]: (可選) 您想掃描的交易對數量。若不提供，則掃描全部。")
+        print("\n [使用範例]")
+        print("   1. 掃描所有 USDT 交易對:")
+        print("      python get_instruments.py USDT")
+        print("\n   2. 掃描前 20 個 BTC 交易對:")
+        print("      python get_instruments.py BTC 20")
+        print("="*60)
+        sys.exit() # 顯示完說明後，安全退出程式
+    # ^^^ --- 輔助說明邏輯結束 --- ^^^
 
+    # --- 後續的程式碼邏輯與之前版本完全相同 ---
     quote_ccy = sys.argv[1]
     pairs = get_spot_instruments_by_quote(quote_ccy)
     
     if not pairs:
-        print("未能獲取任何交易對，程式退出。")
+        print(f"未能獲取任何 {quote_ccy.upper()} 交易對，程式退出。")
         sys.exit()
 
     num_to_process_str = ""
     if len(sys.argv) > 2:
         num_to_process_str = sys.argv[2]
 
-    # 決定要處理的交易對數量
     pairs_to_scan = pairs
     if num_to_process_str:
         try:
@@ -93,9 +106,8 @@ if __name__ == "__main__":
     print(f"開始掃描 {len(pairs_to_scan)} 個交易對的 1 小時 K 線，尋找三角收斂形態...")
     
     found_count = 0
-    found_list = [] # 用一個列表來儲存找到的結果
+    found_list = []
 
-    # 使用 tqdm 顯示進度條
     for pair in tqdm(pairs_to_scan, desc="掃描進度"):
         kline_data = get_kline_data(pair, timeframe='1H', limit='60')
         
@@ -109,7 +121,6 @@ if __name__ == "__main__":
 
         time.sleep(0.1)
 
-    # 在迴圈結束後，一次性打印所有結果
     print("\n" + "="*50)
     print("掃描完成！")
     if found_count > 0:
