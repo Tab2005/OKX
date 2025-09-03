@@ -1,0 +1,25 @@
+秘密檔案 - 絕對不要上傳這個檔案！
+.env
+
+虛擬環境
+忽略存放所有已安裝函式庫的資料夾
+.venv/
+venv/
+ENV/
+env/
+
+Python 自動產生的快取檔案
+pycache/
+*.pyc
+*.pyo
+*.pyd
+
+IDE/編輯器相關的設定檔
+這些包含使用者個人的設定，不應共享
+.vscode/
+.idea/
+
+Python 打包/發佈時產生的資料夾
+dist/
+build/
+*.egg-info/
