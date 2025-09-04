@@ -1,5 +1,5 @@
 # Render.com 部署藍圖
-# 版本: 1
+# 版本: 1.1
 
 services:
   # 服務一：Redis 資料庫 (我們的任務看板)
@@ -39,12 +39,12 @@ services:
       - key: GEMINI_API_KEY
         sync: false
 
-  # 服務四：前端靜態網頁
+  # 服務四：前端靜態網頁 (已修正)
   - name: frontend-static
-    type: static
+    type: static_site # <--- 修正點 1: "static" 改為 "static_site"
     plan: free
-    rootDir: ./ # 告訴 Render 從專案根目錄尋找檔案
-    staticPublishPath: ./ # 指定靜態檔案的路徑
+    rootDir: ./
+    publishDirectory: ./ # <--- 修正點 2: "staticPublishPath" 改為 "publishDirectory"
     buildFilter:
       paths:
         - index.html
