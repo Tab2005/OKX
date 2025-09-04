@@ -100,70 +100,68 @@
         const statusText = document.getElementById('status-text');
         const progressBar = document.getElementById('progress-bar');
         const resultsList = document.getElementById('results-list');
-        const apiUrl = 'http://127.0.0.1:5001'; // 我們的後端 API 地址
+        
+        // vvv --- 唯一的修改點在這裡 --- vvv
+        // 自動偵測目前的網址，無論是在本地還是雲端都能正確運作
+        const apiUrl = window.location.origin; 
+        // ^^^ -------------------------- ^^^
 
-        let pollingInterval; // 用於存放輪詢的計時器
+        let pollingInterval;
 
-        // 監聽掃描按鈕的點擊事件
         scanButton.addEventListener('click', async () => {
-            // 1. 禁用按鈕並重設介面
             scanButton.disabled = true;
             scanButton.textContent = '掃描中...';
             resultsList.innerHTML = '';
             progressBar.style.width = '0%';
             statusText.textContent = '正在提交掃描任務...';
 
-            // 2. 從下拉選單獲取所有參數
             const payload = {
                 exchange: document.getElementById('exchange').value,
                 market: document.getElementById('market').value,
                 quote: document.getElementById('quote').value,
                 timeframe: document.getElementById('timeframe').value,
                 pattern: document.getElementById('pattern').value,
-                limit: null // 暫時掃描全部
+                limit: null
             };
 
             try {
-                // 3. 發送 POST 請求到後端 /scan 端點
+                // 發送到 /scan 路徑，瀏覽器會自動使用目前的網域
                 const response = await fetch(`${apiUrl}/scan`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
-                }
+                if (!response.ok) throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
 
                 const data = await response.json();
                 const taskId = data.task_id;
-                statusText.textContent = `任務已提交 (ID: ${taskId})，正在等待後端處理...`;
+                statusText.textContent = `任務已提交 (ID: ${taskId.substring(0, 8)}...)，正在等待後端處理...`;
 
-                // 4. 開始輪詢任務狀態
                 startPolling(taskId);
 
             } catch (error) {
                 console.error('啟動掃描失敗:', error);
-                statusText.textContent = `錯誤：無法連接到後端伺服器。請確認後端服務是否已啟動。`;
+                statusText.textContent = `錯誤：無法連接到後端伺服器。請檢查日誌(Logs)。`;
                 scanButton.disabled = false;
                 scanButton.textContent = '開始掃描';
             }
         });
 
-        // 開始輪詢函式
         function startPolling(taskId) {
             pollingInterval = setInterval(async () => {
                 try {
+                    // 發送到 /status/[taskId] 路徑
                     const response = await fetch(`${apiUrl}/status/${taskId}`);
+                    if (!response.ok) throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
+                    
                     const data = await response.json();
 
-                    // 更新進度條和狀態文字
                     if (data.state === 'PROGRESS') {
                         const percentage = (data.current / data.total) * 100;
                         progressBar.style.width = `${percentage}%`;
                         statusText.textContent = `[${data.current}/${data.total}] ${data.status}`;
                     } else if (data.state === 'SUCCESS') {
-                        // 任務成功，停止輪詢並顯示結果
                         stopPolling();
                         statusText.textContent = '掃描完成！';
                         progressBar.style.width = '100%';
@@ -174,25 +172,24 @@
                     }
                 } catch (error) {
                     console.error('輪詢狀態失敗:', error);
+                    statusText.textContent = `輪詢失敗，請檢查後端日誌(Logs)。`;
                     stopPolling();
                 }
-            }, 2000); // 每 2 秒查詢一次
+            }, 2000);
         }
 
-        // 停止輪詢函式
         function stopPolling() {
             clearInterval(pollingInterval);
             scanButton.disabled = false;
             scanButton.textContent = '開始掃描';
         }
 
-        // 顯示結果函式
         function displayResults(results) {
             if (results.length === 0) {
                 resultsList.innerHTML = '<p class="text-gray-400">未找到符合條件的目標。</p>';
                 return;
             }
-
+            resultsList.innerHTML = ''; // 清空舊結果
             results.forEach(result => {
                 let emoji = '⏳';
                 if (result.status === 'breakout_up') emoji = '🔥';
