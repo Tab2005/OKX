@@ -11,16 +11,8 @@ import requests
 import numpy as np
 from celery import Celery, states
 from celery.exceptions import Ignore
-from dotenv import load_dotenv
-import json
-
-# 讀取 .env 檔案
-load_dotenv()
 
 # --- 設定 Celery ---
-# 這行程式碼非常靈活：
-# 在本地，它會找不到 REDIS_URL，因此使用 'redis://localhost:6379/0'
-# 在雲端，它會找到 REDIS_URL，因此使用雲端的 Redis
 redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
 celery_app = Celery('tasks', broker=redis_url, backend=redis_url)
 
@@ -77,7 +69,7 @@ class BinanceAdapter(BaseExchange):
         return None
 
 # --- 分析模組 ---
-def analyze_triangle_consolidation(kline_data, period=60): #...
+def analyze_triangle_consolidation(kline_data, period=60):
     if not kline_data or len(kline_data) < period: return False, None, "K 線數據不足"
     recent_klines = kline_data[:period]; highs = np.array([float(k[2]) for k in recent_klines]); lows = np.array([float(k[3]) for k in recent_klines]); closes = np.array([float(k[4]) for k in recent_klines]); x = np.arange(len(highs)); highs_slope, highs_intercept = np.polyfit(x, highs, 1); lows_slope, lows_intercept = np.polyfit(x, lows, 1); first_half_range = np.max(highs[period//2:]) - np.min(lows[period//2:]); second_half_range = np.max(highs[:period//2]) - np.min(lows[:period//2]); is_volatility_decreasing = second_half_range < first_half_range
     if highs_slope < 0 and lows_slope > 0 and is_volatility_decreasing:
@@ -86,7 +78,7 @@ def analyze_triangle_consolidation(kline_data, period=60): #...
         elif latest_close < support_level: return True, "breakout_down", f"三角收斂 向下跌破! 支撐線: {support_level:.4f}"
         else: return True, "forming", f"符合三角收斂 (壓力:{resistance_level:.4f} / 支撐:{support_level:.4f})"
     return False, None, "不符合三角收斂"
-def analyze_double_bottom(kline_data, period=60): #...
+def analyze_double_bottom(kline_data, period=60):
     if not kline_data or len(kline_data) < period: return False, None, "K 線數據不足"
     recent_klines = kline_data[:period]; lows = np.array([float(k[3]) for k in recent_klines]); closes = np.array([float(k[4]) for k in recent_klines]); third = period // 3; low_1_price = np.min(lows[2*third:]); peak_price = np.max(closes[third:2*third]); low_2_price = np.min(lows[:third]); are_lows_similar = abs(low_1_price - low_2_price) / low_1_price < 0.03; avg_low_price = (low_1_price + low_2_price) / 2; is_peak_significant = (peak_price - avg_low_price) / avg_low_price > 0.05; is_rebounding = closes[0] > low_2_price
     if are_lows_similar and is_peak_significant and is_rebounding:
@@ -94,7 +86,7 @@ def analyze_double_bottom(kline_data, period=60): #...
         if latest_close > neckline: return True, "breakout_up", f"W底 頸線突破! 頸線: {neckline:.4f}"
         else: return True, "forming", f"符合 W 底 (等待突破頸線 {neckline:.4f})"
     return False, None, "不符合 W 底"
-def analyze_ascending_triangle(kline_data, period=60): #...
+def analyze_ascending_triangle(kline_data, period=60):
     if not kline_data or len(kline_data) < period: return False, None, "K 線數據不足"
     recent_klines = kline_data[:period]; highs = np.array([float(k[2]) for k in recent_klines]); lows = np.array([float(k[3]) for k in recent_klines]); closes = np.array([float(k[4]) for k in recent_klines]); x = np.arange(len(highs)); highs_slope, _ = np.polyfit(x, highs, 1); lows_slope, _ = np.polyfit(x, lows, 1); is_lows_rising = lows_slope > 0; is_highs_flat = abs(highs_slope) < (lows_slope * 0.25)
     if is_lows_rising and is_highs_flat:
@@ -102,19 +94,6 @@ def analyze_ascending_triangle(kline_data, period=60): #...
         if latest_close > resistance_level: return True, "breakout_up", f"上升三角形 壓力線突破! 壓力線: {resistance_level:.4f}"
         else: return True, "forming", f"符合上升三角形 (等待突破 {resistance_level:.4f})"
     return False, None, "不符合上升三角形"
-def get_gemini_analysis(signal_info): #...
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key: return "AI 分析失敗：找不到 GEMINI_API_KEY 環境變數。"
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={api_key}"
-    prompt = f"您是一位專業的加密貨幣市場分析師。一個交易訊號剛剛在 {signal_info['timeframe']} 線圖上被偵測到。\n- **交易所**: {signal_info['exchange']} ({signal_info['market']} 市場)\n- **交易對**: {signal_info['pair']}\n- **訊號**: {signal_info['description']}\n請基於最新的市場新聞與數據 (透過 Google 搜尋)，提供一份簡潔的分析報告，包含以下幾點：\n1.  **目前市場情緒**\n2.  **相關新聞**\n3.  **潛在風險**\n請以條列式重點摘要回覆。"
-    payload = {"contents": [{"parts": [{"text": prompt}]}], "tools": [{"google_search": {}}]}
-    try:
-        response = requests.post(url, headers={"Content-Type": "application/json"}, data=json.dumps(payload), timeout=30)
-        response.raise_for_status(); result = response.json()
-        if "candidates" in result and result["candidates"]: return result["candidates"][0]["content"]["parts"][0]["text"]
-        return "AI 分析失敗：模型未返回有效內容。"
-    except requests.exceptions.RequestException as e: return f"AI 分析失敗：API 請求錯誤 - {e}"
-    except (KeyError, IndexError) as e: return f"AI 分析失敗：無法解析 API 回應 - {e}"
 
 # --- 函式庫/工具箱 ---
 ANALYSIS_FUNCTIONS = {"triangle": analyze_triangle_consolidation, "double_bottom": analyze_double_bottom, "ascending_triangle": analyze_ascending_triangle}
@@ -141,7 +120,3 @@ def run_scan_task(self, exchange_name, market_type, quote, timeframe, pattern, l
                     found_list.append({"exchange": exchange_adapter.name, "market": market_type, "pair": pair, "timeframe": timeframe, "status": status, "description": description}); break
         self.update_state(state='PROGRESS', meta={'current': i + 1, 'total': total_pairs, 'status': f'Scanning {pair}'}); time.sleep(0.1)
     return {'current': total_pairs, 'total': total_pairs, 'status': 'Scan Complete!', 'result': found_list}
-
-@celery_app.task
-def get_gemini_analysis_task(signal_info):
-    return get_gemini_analysis(signal_info)

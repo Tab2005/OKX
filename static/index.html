@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 輔助市場掃描器 (本地版)</title>
+    <title>市場形態掃描器 (本地版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background-color: #1a202c; color: #cbd5e0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
@@ -11,13 +11,12 @@
         select, input { background-color: #4a5568; color: #e2e8f0; border-color: #718096; }
         button { background-color: #3182ce; color: white; }
         button:disabled { background-color: #a0aec0; cursor: not-allowed; }
-        .ai-textbox { background-color: #1A202C; border-color: #4A5568; }
     </style>
 </head>
 <body class="p-4 md:p-8">
 
     <div class="max-w-4xl mx-auto">
-        <h1 class="text-3xl font-bold text-center mb-6">AI 輔助市場掃描器</h1>
+        <h1 class="text-3xl font-bold text-center mb-6">市場形態掃描器</h1>
 
         <div class="control-panel p-6 rounded-lg shadow-lg mb-8">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -61,10 +60,7 @@
         const statusText = document.getElementById('status-text');
         const progressBar = document.getElementById('progress-bar');
         const resultsList = document.getElementById('results-list');
-        
-        // 關鍵修改：在本地端開發時，我們明確指向本地的 Flask 伺服器
-        const apiUrl = 'http://127.0.0.1:5001'; 
-        
+        const apiUrl = 'http://127.0.0.1:5001';
         let pollingInterval;
 
         scanButton.addEventListener('click', async () => {
@@ -101,7 +97,6 @@
                 try {
                     const response = await fetch(`${apiUrl}/status/${taskId}`);
                     if (!response.ok) throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
-                    
                     const data = await response.json();
 
                     if (data.state === 'PROGRESS') {
@@ -137,88 +132,23 @@
                 return;
             }
             results.forEach(result => {
-                let emoji = '⏳'; let buttonHtml = '';
+                let emoji = '⏳';
                 if (result.status.startsWith('breakout')) {
                     emoji = result.status === 'breakout_up' ? '🔥' : '💧';
-                    buttonHtml = `<button data-signal='${JSON.stringify(result)}' class="ai-button text-sm px-3 py-1 rounded-md bg-sky-600 hover:bg-sky-500">🤖 AI 分析</button>`;
                 }
 
                 const resultElement = document.createElement('div');
-                resultElement.className = 'result-item p-3 rounded-lg flex justify-between items-center';
+                resultElement.className = 'result-item p-3 rounded-lg';
                 resultElement.innerHTML = `
-                    <div class="flex-grow">
-                        <p class="font-bold">${emoji} [${result.exchange.toUpperCase()}-${result.market.toUpperCase()}] ${result.pair}</p>
-                        <p class="text-sm text-gray-300">${result.description}</p>
-                    </div>
-                    ${buttonHtml}
+                    <p class="font-bold">${emoji} [${result.exchange.toUpperCase()}-${result.market.toUpperCase()}] ${result.pair}</p>
+                    <p class="text-sm text-gray-300">${result.description}</p>
                 `;
                 resultsList.appendChild(resultElement);
             });
         }
 
-        resultsList.addEventListener('click', async (event) => {
-            if (event.target && event.target.classList.contains('ai-button')) {
-                const button = event.target;
-                const signalData = JSON.parse(button.dataset.signal);
-                
-                button.disabled = true; button.textContent = '分析中...';
+        // --- 所有與 AI 相關的 JavaScript 函式已移除 ---
 
-                // 移除任何已存在的分析框
-                const existingAnalysis = document.querySelector('.ai-analysis-box');
-                if (existingAnalysis) existingAnalysis.remove();
-
-                try {
-                    const response = await fetch(`${apiUrl}/analyze`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(signalData)
-                    });
-                    if (!response.ok) throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
-                    const data = await response.json();
-                    
-                    const analysisResult = await pollAnalysisResult(data.analysis_task_id);
-                    displayAiAnalysis(button, analysisResult);
-
-                } catch (error) {
-                    console.error('AI 分析請求失敗:', error);
-                    displayAiAnalysis(button, `AI 分析請求失敗: ${error.message}`);
-                }
-            }
-        });
-        
-        async function pollAnalysisResult(taskId) {
-            for (let i = 0; i < 30; i++) { 
-                const response = await fetch(`${apiUrl}/status/${taskId}`);
-                const data = await response.json();
-                if (data.state === 'SUCCESS') {
-                    return data.result;
-                } else if (data.state === 'FAILURE') {
-                    return `AI 分析失敗: ${data.status}`;
-                }
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-            return "AI 分析超時。";
-        }
-
-        function displayAiAnalysis(button, analysisText) {
-            const existingAnalysis = document.querySelector('.ai-analysis-box');
-            if(existingAnalysis){ existingAnalysis.remove(); }
-            
-            const analysisBox = document.createElement('div');
-            analysisBox.className = 'ai-analysis-box p-3 mt-2 mb-2 rounded-lg bg-gray-900 text-sm text-gray-300 border border-gray-700';
-            analysisBox.textContent = analysisText;
-            button.closest('.result-item').after(analysisBox);
-            button.disabled = false; button.textContent = '隱藏分析';
-
-            // 簡易的隱藏邏輯
-            button.onclick = () => {
-                const box = button.closest('.result-item').nextElementSibling;
-                if (box && box.classList.contains('ai-analysis-box')) {
-                    box.remove();
-                    button.textContent = '🤖 AI 分析';
-                    button.onclick = null; // 恢復原始點擊事件
-                }
-            };
-        }
     </script>
 </body>
 </html>
-

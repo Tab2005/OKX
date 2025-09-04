@@ -1,10 +1,10 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from tasks import run_scan_task, get_gemini_analysis_task
+from tasks import run_scan_task # <-- 只匯入 run_scan_task
 from celery.result import AsyncResult
 
 app = Flask(__name__)
-CORS(app) # 允許跨來源請求，這樣我們的 index.html 檔案才能順利溝通
+CORS(app)
 
 @app.route('/scan', methods=['POST'])
 def start_scan_endpoint():
@@ -28,7 +28,7 @@ def get_task_status_endpoint(task_id):
         if isinstance(task_result.info, Exception): status_text = str(task_result.info)
         elif isinstance(task_result.info, dict) and 'exc' in task_result.info: status_text = task_result.info['exc']
         response = {'state': task_result.state, 'status': status_text}
-    else: # SUCCESS, PROGRESS, or other states
+    else: # SUCCESS, PROGRESS
         response = {
             'state': task_result.state,
             'current': task_result.info.get('current', 0) if isinstance(task_result.info, dict) else 0,
@@ -37,14 +37,10 @@ def get_task_status_endpoint(task_id):
         }
         if isinstance(task_result.info, dict) and 'result' in task_result.info:
             response['result'] = task_result.info['result']
+            
     return jsonify(response)
 
-@app.route('/analyze', methods=['POST'])
-def start_analysis_endpoint():
-    signal_info = request.json
-    task = get_gemini_analysis_task.delay(signal_info)
-    return jsonify({"analysis_task_id": task.id}), 202
+# --- '/analyze' 端點已移除 ---
 
-# 在本地端開發時，我們使用這個來啟動伺服器
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
