@@ -1,7 +1,6 @@
 import sys
 
 # 只有當這個檔案是被 Celery worker 執行時，才進行 monkey_patch
-# 我們透過檢查啟動指令中是否包含 'celery' 來判斷
 if 'celery' in sys.argv[0]:
     import eventlet
     eventlet.monkey_patch()
@@ -11,12 +10,17 @@ import requests
 import numpy as np
 from celery import Celery, states
 from celery.exceptions import Ignore
+import os # <-- 匯入 os 模組
 
-# ... 後續的所有程式碼都保持不變 ...
-# --- 步驟 1: 設定 Celery ---
-celery_app = Celery('tasks', broker='redis://localhost:6379/0', backend='redis://localhost:6379/0')
+# --- 設定 Celery ---
+# 從環境變數讀取 Redis URL。
+# 如果在雲端 (Render 會提供 REDIS_URL)，就使用雲端的 URL。
+# 如果在本地 (找不到 REDIS_URL)，就使用 localhost 作為備用。
+redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+celery_app = Celery('tasks', broker=redis_url, backend=redis_url)
 
-# --- 步驟 2: 搬移並改造 scanner.py 的所有功能 ---
+
+# --- 轉接頭架構 & 數據獲取 (保持不變) ---
 class BaseExchange:
     def __init__(self): self.name = "Base Exchange"
     def get_instruments_by_quote(self, quote_currency, market_type='spot'): raise NotImplementedError
@@ -92,6 +96,7 @@ class BinanceAdapter(BaseExchange):
             print(f"\n[ERROR] Failed to get kline for {instrument_id} from Binance: {e}")
         return None
 
+# --- 分析模組 (保持不變) ---
 def analyze_triangle_consolidation(kline_data, period=60):
     if not kline_data or len(kline_data) < period: return False, None, "K 線數據不足"
     recent_klines = kline_data[:period]; highs = np.array([float(k[2]) for k in recent_klines]); lows = np.array([float(k[3]) for k in recent_klines]); closes = np.array([float(k[4]) for k in recent_klines]); x = np.arange(len(highs)); highs_slope, highs_intercept = np.polyfit(x, highs, 1); lows_slope, lows_intercept = np.polyfit(x, lows, 1); first_half_range = np.max(highs[period//2:]) - np.min(lows[period//2:]); second_half_range = np.max(highs[:period//2]) - np.min(lows[:period//2]); is_volatility_decreasing = second_half_range < first_half_range
@@ -121,6 +126,7 @@ ANALYSIS_FUNCTIONS = {"triangle": analyze_triangle_consolidation, "double_bottom
 EXCHANGE_ADAPTERS = {"okx": OkxAdapter, "binance": BinanceAdapter}
 PATTERN_GROUPS = {"long_patterns": ["triangle", "double_bottom", "ascending_triangle"]}
 
+# --- 核心掃描函式 (保持不變) ---
 @celery_app.task(bind=True)
 def run_scan_task(self, exchange_name, market_type, quote, timeframe, pattern, limit=None):
     exchange_class = EXCHANGE_ADAPTERS[exchange_name]
@@ -149,3 +155,4 @@ def run_scan_task(self, exchange_name, market_type, quote, timeframe, pattern, l
         self.update_state(state='PROGRESS', meta={'current': i + 1, 'total': total_pairs, 'status': f'Scanning {pair}'})
         time.sleep(0.1)
     return {'current': total_pairs, 'total': total_pairs, 'status': 'Scan Complete!', 'result': found_list}
+

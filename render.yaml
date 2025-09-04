@@ -1,0 +1,54 @@
+# Render.com 部署藍圖
+# 版本: 1
+
+services:
+  # 服務一：Redis 資料庫 (我們的任務看板)
+  - name: redis-broker
+    type: redis
+    plan: free # 使用免費方案
+
+  # 服務二：Celery 背景工人 (我們的後廚)
+  - name: celery-worker
+    type: worker
+    plan: free # 使用免費方案
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A tasks.celery_app worker -l info -P eventlet
+    envVars:
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: redis-broker
+          property: connectionString
+      - key: GEMINI_API_KEY
+        sync: false # 我們會在 Render 儀表板上設定這個秘密
+
+  # 服務三：Flask API 伺服器 (我們的點餐櫃檯)
+  - name: flask-api
+    type: web
+    plan: free # 使用免費方案
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: redis-broker
+          property: connectionString
+      - key: GEMINI_API_KEY
+        sync: false
+
+  # 服務四：前端靜態網頁
+  - name: frontend-static
+    type: static
+    plan: free
+    rootDir: ./ # 告訴 Render 從專案根目錄尋找檔案
+    staticPublishPath: ./ # 指定靜態檔案的路徑
+    buildFilter:
+      paths:
+        - index.html
+    routes:
+      - type: rewrite
+        source: /
+        destination: /index.html
