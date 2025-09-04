@@ -3,95 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 輔助市場掃描器 (Web)</title>
-    <!-- 引入 Tailwind CSS for styling -->
+    <title>AI 輔助市場掃描器 (本地版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* 簡單的深色主題 */
-        body { background-color: #1a202c; color: #cbd5e0; }
-        .control-panel { background-color: #2d3748; }
-        .results-panel { background-color: #2d3748; }
+        body { background-color: #1a202c; color: #cbd5e0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .control-panel, .results-panel, .result-item { background-color: #2d3748; }
         select, input { background-color: #4a5568; color: #e2e8f0; border-color: #718096; }
         button { background-color: #3182ce; color: white; }
         button:disabled { background-color: #a0aec0; cursor: not-allowed; }
-        progress { accent-color: #3182ce; }
+        .ai-textbox { background-color: #1A202C; border-color: #4A5568; }
     </style>
 </head>
-<body class="font-sans p-4 md:p-8">
+<body class="p-4 md:p-8">
 
     <div class="max-w-4xl mx-auto">
         <h1 class="text-3xl font-bold text-center mb-6">AI 輔助市場掃描器</h1>
 
-        <!-- 控制面板 -->
         <div class="control-panel p-6 rounded-lg shadow-lg mb-8">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- 交易所 & 市場 -->
                 <div>
-                    <label for="exchange" class="block mb-2 text-sm font-medium">交易所 (Exchange)</label>
-                    <select id="exchange" class="w-full p-2.5 rounded-lg border">
-                        <option value="okx">OKX</option>
-                        <option value="binance">Binance (幣安)</option>
-                    </select>
+                    <label for="exchange" class="block mb-2 text-sm font-medium">交易所</label>
+                    <select id="exchange" class="w-full p-2.5 rounded-lg border"><option value="okx">OKX</option><option value="binance">Binance (幣安)</option></select>
                 </div>
                 <div>
-                    <label for="market" class="block mb-2 text-sm font-medium">市場類型 (Market)</label>
-                    <select id="market" class="w-full p-2.5 rounded-lg border">
-                        <option value="spot">現貨市場</option>
-                        <option value="swap">永續合約</option>
-                    </select>
+                    <label for="market" class="block mb-2 text-sm font-medium">市場類型</label>
+                    <select id="market" class="w-full p-2.5 rounded-lg border"><option value="spot">現貨市場</option><option value="swap">永續合約</option></select>
                 </div>
                 <div>
-                    <label for="quote" class="block mb-2 text-sm font-medium">報價貨幣 (Quote)</label>
-                    <select id="quote" class="w-full p-2.5 rounded-lg border">
-                        <option value="USDT">USDT</option>
-                        <option value="USDC">USDC</option>
-                    </select>
-                </div>
-                <!-- 時框 & 型態 -->
-                <div>
-                    <label for="timeframe" class="block mb-2 text-sm font-medium">K線時框 (Timeframe)</label>
-                    <select id="timeframe" class="w-full p-2.5 rounded-lg border">
-                        <option value="5m">5分鐘</option>
-                        <option value="15m">15分鐘</option>
-                        <option value="30m">30分鐘</option>
-                        <option value="1H">1小時</option>
-                        <option value="4H">4小時</option>
-                        <option value="1D">1天</option>
-                    </select>
+                    <label for="quote" class="block mb-2 text-sm font-medium">報價貨幣</label>
+                    <select id="quote" class="w-full p-2.5 rounded-lg border"><option>USDT</option><option>USDC</option></select>
                 </div>
                 <div>
-                    <label for="pattern" class="block mb-2 text-sm font-medium">技術形態 (Pattern)</label>
-                    <select id="pattern" class="w-full p-2.5 rounded-lg border">
-                        <option value="long_patterns">全部做多型態</option>
-                        <option value="triangle">三角收斂</option>
-                        <option value="double_bottom">W底型態</option>
-                        <option value="ascending_triangle">上升三角形</option>
-                    </select>
+                    <label for="timeframe" class="block mb-2 text-sm font-medium">K線時框</label>
+                    <select id="timeframe" class="w-full p-2.5 rounded-lg border"><option value="5m">5分鐘</option><option value="15m">15分鐘</option><option value="30m">30分鐘</option><option value="1H">1小時</option><option value="4H">4小時</option><option value="1D">1天</option></select>
+                </div>
+                <div>
+                    <label for="pattern" class="block mb-2 text-sm font-medium">技術形態</label>
+                    <select id="pattern" class="w-full p-2.5 rounded-lg border"><option value="long_patterns">全部做多型態</option><option value="triangle">三角收斂</option><option value="double_bottom">W底型態</option><option value="ascending_triangle">上升三角形</option></select>
                 </div>
             </div>
-            
-            <!-- 掃描按鈕 -->
             <div class="mt-8 text-center">
-                <button id="scan-button" class="px-8 py-3 font-bold rounded-lg shadow-lg hover:bg-blue-600 transition duration-300">
-                    開始掃描
-                </button>
+                <button id="scan-button" class="px-8 py-3 font-bold rounded-lg shadow-lg hover:bg-blue-600 transition duration-300">開始掃描</button>
             </div>
         </div>
 
-        <!-- 結果面板 -->
         <div class="results-panel p-6 rounded-lg shadow-lg">
-            <h2 class="text-xl font-bold mb-4">掃描進度與結果</h2>
-            <div id="status-text" class="text-gray-400 mb-4">請設定參數後，點擊開始掃描...</div>
-            
-            <!-- 進度條 -->
+            <div id="status-text" class="text-gray-400 mb-2">請設定參數後，點擊開始掃描...</div>
             <div class="w-full bg-gray-700 rounded-full h-2.5 mb-4">
-                <div id="progress-bar" class="bg-blue-500 h-2.5 rounded-full" style="width: 0%"></div>
+                <div id="progress-bar" class="bg-blue-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
             </div>
-
-            <!-- 結果列表 -->
-            <div id="results-list" class="space-y-4">
-                <!-- JavaScript 將會在這裡動態插入結果 -->
-            </div>
+            <div id="results-list" class="space-y-3 mt-4"></div>
         </div>
     </div>
 
@@ -101,18 +62,14 @@
         const progressBar = document.getElementById('progress-bar');
         const resultsList = document.getElementById('results-list');
         
-        // vvv --- 唯一的修改點在這裡 --- vvv
-        // 自動偵測目前的網址，無論是在本地還是雲端都能正確運作
-        const apiUrl = window.location.origin; 
-        // ^^^ -------------------------- ^^^
-
+        // 關鍵修改：在本地端開發時，我們明確指向本地的 Flask 伺服器
+        const apiUrl = 'http://127.0.0.1:5001'; 
+        
         let pollingInterval;
 
         scanButton.addEventListener('click', async () => {
-            scanButton.disabled = true;
-            scanButton.textContent = '掃描中...';
-            resultsList.innerHTML = '';
-            progressBar.style.width = '0%';
+            scanButton.disabled = true; scanButton.textContent = '掃描中...';
+            resultsList.innerHTML = ''; progressBar.style.width = '0%';
             statusText.textContent = '正在提交掃描任務...';
 
             const payload = {
@@ -125,40 +82,30 @@
             };
 
             try {
-                // 發送到 /scan 路徑，瀏覽器會自動使用目前的網域
                 const response = await fetch(`${apiUrl}/scan`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
                 });
-
                 if (!response.ok) throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
-
                 const data = await response.json();
-                const taskId = data.task_id;
-                statusText.textContent = `任務已提交 (ID: ${taskId.substring(0, 8)}...)，正在等待後端處理...`;
-
-                startPolling(taskId);
-
+                startPolling(data.task_id, `${payload.exchange.toUpperCase()} | ${payload.market.toUpperCase()} | ${payload.quote.toUpperCase()}`);
             } catch (error) {
                 console.error('啟動掃描失敗:', error);
-                statusText.textContent = `錯誤：無法連接到後端伺服器。請檢查日誌(Logs)。`;
-                scanButton.disabled = false;
-                scanButton.textContent = '開始掃描';
+                statusText.textContent = `錯誤：無法連接到後端伺服器。請確認 Flask/Celery 服務是否已啟動。`;
+                scanButton.disabled = false; scanButton.textContent = '開始掃描';
             }
         });
 
-        function startPolling(taskId) {
+        function startPolling(taskId, title) {
+            statusText.textContent = `任務已提交 (${title})，等待後端處理...`;
             pollingInterval = setInterval(async () => {
                 try {
-                    // 發送到 /status/[taskId] 路徑
                     const response = await fetch(`${apiUrl}/status/${taskId}`);
                     if (!response.ok) throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
                     
                     const data = await response.json();
 
                     if (data.state === 'PROGRESS') {
-                        const percentage = (data.current / data.total) * 100;
+                        const percentage = data.total > 0 ? (data.current / data.total) * 100 : 0;
                         progressBar.style.width = `${percentage}%`;
                         statusText.textContent = `[${data.current}/${data.total}] ${data.status}`;
                     } else if (data.state === 'SUCCESS') {
@@ -172,7 +119,7 @@
                     }
                 } catch (error) {
                     console.error('輪詢狀態失敗:', error);
-                    statusText.textContent = `輪詢失敗，請檢查後端日誌(Logs)。`;
+                    statusText.textContent = `輪詢失敗，請檢查後端日誌。`;
                     stopPolling();
                 }
             }, 2000);
@@ -180,31 +127,98 @@
 
         function stopPolling() {
             clearInterval(pollingInterval);
-            scanButton.disabled = false;
-            scanButton.textContent = '開始掃描';
+            scanButton.disabled = false; scanButton.textContent = '開始掃描';
         }
 
         function displayResults(results) {
+            resultsList.innerHTML = '';
             if (results.length === 0) {
-                resultsList.innerHTML = '<p class="text-gray-400">未找到符合條件的目標。</p>';
+                resultsList.innerHTML = '<p class="text-gray-400 p-4">未找到符合條件的目標。</p>';
                 return;
             }
-            resultsList.innerHTML = ''; // 清空舊結果
             results.forEach(result => {
-                let emoji = '⏳';
-                if (result.status === 'breakout_up') emoji = '🔥';
-                if (result.status === 'breakout_down') emoji = '💧';
+                let emoji = '⏳'; let buttonHtml = '';
+                if (result.status.startsWith('breakout')) {
+                    emoji = result.status === 'breakout_up' ? '🔥' : '💧';
+                    buttonHtml = `<button data-signal='${JSON.stringify(result)}' class="ai-button text-sm px-3 py-1 rounded-md bg-sky-600 hover:bg-sky-500">🤖 AI 分析</button>`;
+                }
 
                 const resultElement = document.createElement('div');
-                resultElement.className = 'p-4 rounded-lg bg-gray-800/50';
+                resultElement.className = 'result-item p-3 rounded-lg flex justify-between items-center';
                 resultElement.innerHTML = `
-                    <p class="font-bold text-lg">${emoji} [${result.exchange.toUpperCase()}-${result.market.toUpperCase()}] ${result.pair}</p>
-                    <p class="text-gray-300">${result.description}</p>
+                    <div class="flex-grow">
+                        <p class="font-bold">${emoji} [${result.exchange.toUpperCase()}-${result.market.toUpperCase()}] ${result.pair}</p>
+                        <p class="text-sm text-gray-300">${result.description}</p>
+                    </div>
+                    ${buttonHtml}
                 `;
                 resultsList.appendChild(resultElement);
             });
         }
-    </script>
 
+        resultsList.addEventListener('click', async (event) => {
+            if (event.target && event.target.classList.contains('ai-button')) {
+                const button = event.target;
+                const signalData = JSON.parse(button.dataset.signal);
+                
+                button.disabled = true; button.textContent = '分析中...';
+
+                // 移除任何已存在的分析框
+                const existingAnalysis = document.querySelector('.ai-analysis-box');
+                if (existingAnalysis) existingAnalysis.remove();
+
+                try {
+                    const response = await fetch(`${apiUrl}/analyze`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(signalData)
+                    });
+                    if (!response.ok) throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
+                    const data = await response.json();
+                    
+                    const analysisResult = await pollAnalysisResult(data.analysis_task_id);
+                    displayAiAnalysis(button, analysisResult);
+
+                } catch (error) {
+                    console.error('AI 分析請求失敗:', error);
+                    displayAiAnalysis(button, `AI 分析請求失敗: ${error.message}`);
+                }
+            }
+        });
+        
+        async function pollAnalysisResult(taskId) {
+            for (let i = 0; i < 30; i++) { 
+                const response = await fetch(`${apiUrl}/status/${taskId}`);
+                const data = await response.json();
+                if (data.state === 'SUCCESS') {
+                    return data.result;
+                } else if (data.state === 'FAILURE') {
+                    return `AI 分析失敗: ${data.status}`;
+                }
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+            return "AI 分析超時。";
+        }
+
+        function displayAiAnalysis(button, analysisText) {
+            const existingAnalysis = document.querySelector('.ai-analysis-box');
+            if(existingAnalysis){ existingAnalysis.remove(); }
+            
+            const analysisBox = document.createElement('div');
+            analysisBox.className = 'ai-analysis-box p-3 mt-2 mb-2 rounded-lg bg-gray-900 text-sm text-gray-300 border border-gray-700';
+            analysisBox.textContent = analysisText;
+            button.closest('.result-item').after(analysisBox);
+            button.disabled = false; button.textContent = '隱藏分析';
+
+            // 簡易的隱藏邏輯
+            button.onclick = () => {
+                const box = button.closest('.result-item').nextElementSibling;
+                if (box && box.classList.contains('ai-analysis-box')) {
+                    box.remove();
+                    button.textContent = '🤖 AI 分析';
+                    button.onclick = null; // 恢復原始點擊事件
+                }
+            };
+        }
+    </script>
 </body>
 </html>
+

@@ -18,6 +18,9 @@ import json
 load_dotenv()
 
 # --- 設定 Celery ---
+# 這行程式碼非常靈活：
+# 在本地，它會找不到 REDIS_URL，因此使用 'redis://localhost:6379/0'
+# 在雲端，它會找到 REDIS_URL，因此使用雲端的 Redis
 redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
 celery_app = Celery('tasks', broker=redis_url, backend=redis_url)
 
@@ -31,12 +34,9 @@ class OkxAdapter(BaseExchange):
     def __init__(self):
         super().__init__(); self.name = "OKX"; self.base_url = "https://www.okx.com"
     def get_instruments_by_quote(self, quote_currency, market_type='spot'):
-        url = self.base_url + "/api/v5/public/instruments"
-        inst_type = 'SPOT' if market_type == 'spot' else 'SWAP'
-        params = {'instType': inst_type}
+        url = self.base_url + "/api/v5/public/instruments"; inst_type = 'SPOT' if market_type == 'spot' else 'SWAP'; params = {'instType': inst_type}
         try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status(); data = response.json()
+            response = requests.get(url, params=params, timeout=10); response.raise_for_status(); data = response.json()
             if data.get('code') == '0':
                 instruments_data = data.get('data', []); quote = quote_currency.upper()
                 if market_type == 'spot':
@@ -49,11 +49,9 @@ class OkxAdapter(BaseExchange):
         except requests.exceptions.RequestException as e: print(f"[ERROR] OKX API request failed: {e}")
         return None
     def get_kline_data(self, instrument_id, timeframe, market_type='spot', limit=100):
-        url = self.base_url + "/api/v5/market/history-candles"
-        params = {'instId': instrument_id, 'bar': timeframe, 'limit': str(limit)}
+        url = self.base_url + "/api/v5/market/history-candles"; params = {'instId': instrument_id, 'bar': timeframe, 'limit': str(limit)}
         try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status(); data = response.json()
+            response = requests.get(url, params=params, timeout=10); response.raise_for_status(); data = response.json()
             if data.get('code') == '0': return data.get('data', [])
         except requests.exceptions.RequestException as e: print(f"\n[ERROR] Failed to get kline for {instrument_id} from OKX: {e}")
         return None
@@ -71,8 +69,7 @@ class BinanceAdapter(BaseExchange):
         return None
     def get_kline_data(self, instrument_id, timeframe, market_type='spot', limit=100):
         url = self.spot_url + "/klines" if market_type == 'spot' else self.futures_url + "/klines"
-        timeframe_map = {"5m": "5m", "15m": "15m", "30m": "30m", "1H": "1h", "4H": "4h", "1D": "1d"}
-        api_timeframe = timeframe_map.get(timeframe, "1h")
+        timeframe_map = {"5m": "5m", "15m": "15m", "30m": "30m", "1H": "1h", "4H": "4h", "1D": "1d"}; api_timeframe = timeframe_map.get(timeframe, "1h")
         params = {'symbol': instrument_id, 'interval': api_timeframe, 'limit': str(limit)}
         try:
             response = requests.get(url, params=params, timeout=10); response.raise_for_status(); return response.json()
@@ -105,6 +102,19 @@ def analyze_ascending_triangle(kline_data, period=60): #...
         if latest_close > resistance_level: return True, "breakout_up", f"上升三角形 壓力線突破! 壓力線: {resistance_level:.4f}"
         else: return True, "forming", f"符合上升三角形 (等待突破 {resistance_level:.4f})"
     return False, None, "不符合上升三角形"
+def get_gemini_analysis(signal_info): #...
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key: return "AI 分析失敗：找不到 GEMINI_API_KEY 環境變數。"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={api_key}"
+    prompt = f"您是一位專業的加密貨幣市場分析師。一個交易訊號剛剛在 {signal_info['timeframe']} 線圖上被偵測到。\n- **交易所**: {signal_info['exchange']} ({signal_info['market']} 市場)\n- **交易對**: {signal_info['pair']}\n- **訊號**: {signal_info['description']}\n請基於最新的市場新聞與數據 (透過 Google 搜尋)，提供一份簡潔的分析報告，包含以下幾點：\n1.  **目前市場情緒**\n2.  **相關新聞**\n3.  **潛在風險**\n請以條列式重點摘要回覆。"
+    payload = {"contents": [{"parts": [{"text": prompt}]}], "tools": [{"google_search": {}}]}
+    try:
+        response = requests.post(url, headers={"Content-Type": "application/json"}, data=json.dumps(payload), timeout=30)
+        response.raise_for_status(); result = response.json()
+        if "candidates" in result and result["candidates"]: return result["candidates"][0]["content"]["parts"][0]["text"]
+        return "AI 分析失敗：模型未返回有效內容。"
+    except requests.exceptions.RequestException as e: return f"AI 分析失敗：API 請求錯誤 - {e}"
+    except (KeyError, IndexError) as e: return f"AI 分析失敗：無法解析 API 回應 - {e}"
 
 # --- 函式庫/工具箱 ---
 ANALYSIS_FUNCTIONS = {"triangle": analyze_triangle_consolidation, "double_bottom": analyze_double_bottom, "ascending_triangle": analyze_ascending_triangle}
@@ -114,11 +124,10 @@ PATTERN_GROUPS = {"long_patterns": ["triangle", "double_bottom", "ascending_tria
 # --- 背景任務 ---
 @celery_app.task(bind=True)
 def run_scan_task(self, exchange_name, market_type, quote, timeframe, pattern, limit=None):
-    # ... (此函式保持不變) ...
     exchange_class = EXCHANGE_ADAPTERS[exchange_name]; exchange_adapter = exchange_class()
     pairs = exchange_adapter.get_instruments_by_quote(quote, market_type=market_type)
     if not pairs:
-        self.update_state(state=states.FAILURE, meta={'exc': f'Could not fetch instrument list from {exchange_adapter.name}.'}); raise Ignore()
+        self.update_state(state=states.FAILURE, meta={'exc': f'Could not fetch instrument list from {exchange_adapter.name}. Check for potential geo-blocking.'}); raise Ignore()
     pairs_to_scan = pairs[:limit] if limit else pairs; total_pairs = len(pairs_to_scan)
     self.update_state(state='PROGRESS', meta={'current': 0, 'total': total_pairs, 'status': 'Initializing...'})
     found_list = []; patterns_to_check = PATTERN_GROUPS.get(pattern, [pattern])
@@ -135,24 +144,4 @@ def run_scan_task(self, exchange_name, market_type, quote, timeframe, pattern, l
 
 @celery_app.task
 def get_gemini_analysis_task(signal_info):
-    """呼叫 Gemini API 的背景任務。"""
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key: return "AI 分析失敗：找不到 GEMINI_API_KEY 環境變數。"
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={api_key}"
-    prompt = f"""您是一位專業的加密貨幣市場分析師。一個交易訊號剛剛在 {signal_info['timeframe']} 線圖上被偵測到。
-- **交易所**: {signal_info['exchange']} ({signal_info['market']} 市場)
-- **交易對**: {signal_info['pair']}
-- **訊號**: {signal_info['description']}
-請基於最新的市場新聞與數據 (透過 Google 搜尋)，提供一份簡潔的分析報告，包含以下幾點：
-1.  **目前市場情緒**: 市場對此資產的普遍看法是看漲、看跌還是中性？
-2.  **相關新聞**: 有沒有任何可能支持或反駁此技術訊號的近期新聞？
-3.  **潛在風險**: 在根據此訊號進行交易前，應考慮哪些立即性的風險？
-請以條列式重點摘要回覆。"""
-    payload = {"contents": [{"parts": [{"text": prompt}]}], "tools": [{"google_search": {}}]}
-    try:
-        response = requests.post(url, headers={"Content-Type": "application/json"}, data=json.dumps(payload), timeout=30)
-        response.raise_for_status(); result = response.json()
-        if "candidates" in result and result["candidates"]: return result["candidates"][0]["content"]["parts"][0]["text"]
-        return "AI 分析失敗：模型未返回有效內容。"
-    except requests.exceptions.RequestException as e: return f"AI 分析失敗：API 請求錯誤 - {e}"
-    except (KeyError, IndexError) as e: return f"AI 分析失敗：無法解析 API 回應 - {e}"
+    return get_gemini_analysis(signal_info)
