@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 輔助市場掃描器 (Web)</title>
+    <!-- 引入 Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 簡單的深色主題 */
+        body { background-color: #1a202c; color: #cbd5e0; }
+        .control-panel { background-color: #2d3748; }
+        .results-panel { background-color: #2d3748; }
+        select, input { background-color: #4a5568; color: #e2e8f0; border-color: #718096; }
+        button { background-color: #3182ce; color: white; }
+        button:disabled { background-color: #a0aec0; cursor: not-allowed; }
+        progress { accent-color: #3182ce; }
+    </style>
+</head>
+<body class="font-sans p-4 md:p-8">
+
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-center mb-6">AI 輔助市場掃描器</h1>
+
+        <!-- 控制面板 -->
+        <div class="control-panel p-6 rounded-lg shadow-lg mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- 交易所 & 市場 -->
+                <div>
+                    <label for="exchange" class="block mb-2 text-sm font-medium">交易所 (Exchange)</label>
+                    <select id="exchange" class="w-full p-2.5 rounded-lg border">
+                        <option value="okx">OKX</option>
+                        <option value="binance">Binance (幣安)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="market" class="block mb-2 text-sm font-medium">市場類型 (Market)</label>
+                    <select id="market" class="w-full p-2.5 rounded-lg border">
+                        <option value="spot">現貨市場</option>
+                        <option value="swap">永續合約</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="quote" class="block mb-2 text-sm font-medium">報價貨幣 (Quote)</label>
+                    <select id="quote" class="w-full p-2.5 rounded-lg border">
+                        <option value="USDT">USDT</option>
+                        <option value="USDC">USDC</option>
+                    </select>
+                </div>
+                <!-- 時框 & 型態 -->
+                <div>
+                    <label for="timeframe" class="block mb-2 text-sm font-medium">K線時框 (Timeframe)</label>
+                    <select id="timeframe" class="w-full p-2.5 rounded-lg border">
+                        <option value="5m">5分鐘</option>
+                        <option value="15m">15分鐘</option>
+                        <option value="30m">30分鐘</option>
+                        <option value="1H">1小時</option>
+                        <option value="4H">4小時</option>
+                        <option value="1D">1天</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="pattern" class="block mb-2 text-sm font-medium">技術形態 (Pattern)</label>
+                    <select id="pattern" class="w-full p-2.5 rounded-lg border">
+                        <option value="long_patterns">全部做多型態</option>
+                        <option value="triangle">三角收斂</option>
+                        <option value="double_bottom">W底型態</option>
+                        <option value="ascending_triangle">上升三角形</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- 掃描按鈕 -->
+            <div class="mt-8 text-center">
+                <button id="scan-button" class="px-8 py-3 font-bold rounded-lg shadow-lg hover:bg-blue-600 transition duration-300">
+                    開始掃描
+                </button>
+            </div>
+        </div>
+
+        <!-- 結果面板 -->
+        <div class="results-panel p-6 rounded-lg shadow-lg">
+            <h2 class="text-xl font-bold mb-4">掃描進度與結果</h2>
+            <div id="status-text" class="text-gray-400 mb-4">請設定參數後，點擊開始掃描...</div>
+            
+            <!-- 進度條 -->
+            <div class="w-full bg-gray-700 rounded-full h-2.5 mb-4">
+                <div id="progress-bar" class="bg-blue-500 h-2.5 rounded-full" style="width: 0%"></div>
+            </div>
+
+            <!-- 結果列表 -->
+            <div id="results-list" class="space-y-4">
+                <!-- JavaScript 將會在這裡動態插入結果 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const scanButton = document.getElementById('scan-button');
+        const statusText = document.getElementById('status-text');
+        const progressBar = document.getElementById('progress-bar');
+        const resultsList = document.getElementById('results-list');
+        const apiUrl = 'http://127.0.0.1:5001'; // 我們的後端 API 地址
+
+        let pollingInterval; // 用於存放輪詢的計時器
+
+        // 監聽掃描按鈕的點擊事件
+        scanButton.addEventListener('click', async () => {
+            // 1. 禁用按鈕並重設介面
+            scanButton.disabled = true;
+            scanButton.textContent = '掃描中...';
+            resultsList.innerHTML = '';
+            progressBar.style.width = '0%';
+            statusText.textContent = '正在提交掃描任務...';
+
+            // 2. 從下拉選單獲取所有參數
+            const payload = {
+                exchange: document.getElementById('exchange').value,
+                market: document.getElementById('market').value,
+                quote: document.getElementById('quote').value,
+                timeframe: document.getElementById('timeframe').value,
+                pattern: document.getElementById('pattern').value,
+                limit: null // 暫時掃描全部
+            };
+
+            try {
+                // 3. 發送 POST 請求到後端 /scan 端點
+                const response = await fetch(`${apiUrl}/scan`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const taskId = data.task_id;
+                statusText.textContent = `任務已提交 (ID: ${taskId})，正在等待後端處理...`;
+
+                // 4. 開始輪詢任務狀態
+                startPolling(taskId);
+
+            } catch (error) {
+                console.error('啟動掃描失敗:', error);
+                statusText.textContent = `錯誤：無法連接到後端伺服器。請確認後端服務是否已啟動。`;
+                scanButton.disabled = false;
+                scanButton.textContent = '開始掃描';
+            }
+        });
+
+        // 開始輪詢函式
+        function startPolling(taskId) {
+            pollingInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`${apiUrl}/status/${taskId}`);
+                    const data = await response.json();
+
+                    // 更新進度條和狀態文字
+                    if (data.state === 'PROGRESS') {
+                        const percentage = (data.current / data.total) * 100;
+                        progressBar.style.width = `${percentage}%`;
+                        statusText.textContent = `[${data.current}/${data.total}] ${data.status}`;
+                    } else if (data.state === 'SUCCESS') {
+                        // 任務成功，停止輪詢並顯示結果
+                        stopPolling();
+                        statusText.textContent = '掃描完成！';
+                        progressBar.style.width = '100%';
+                        displayResults(data.result);
+                    } else if (data.state === 'FAILURE') {
+                        stopPolling();
+                        statusText.textContent = `任務失敗: ${data.status}`;
+                    }
+                } catch (error) {
+                    console.error('輪詢狀態失敗:', error);
+                    stopPolling();
+                }
+            }, 2000); // 每 2 秒查詢一次
+        }
+
+        // 停止輪詢函式
+        function stopPolling() {
+            clearInterval(pollingInterval);
+            scanButton.disabled = false;
+            scanButton.textContent = '開始掃描';
+        }
+
+        // 顯示結果函式
+        function displayResults(results) {
+            if (results.length === 0) {
+                resultsList.innerHTML = '<p class="text-gray-400">未找到符合條件的目標。</p>';
+                return;
+            }
+
+            results.forEach(result => {
+                let emoji = '⏳';
+                if (result.status === 'breakout_up') emoji = '🔥';
+                if (result.status === 'breakout_down') emoji = '💧';
+
+                const resultElement = document.createElement('div');
+                resultElement.className = 'p-4 rounded-lg bg-gray-800/50';
+                resultElement.innerHTML = `
+                    <p class="font-bold text-lg">${emoji} [${result.exchange.toUpperCase()}-${result.market.toUpperCase()}] ${result.pair}</p>
+                    <p class="text-gray-300">${result.description}</p>
+                `;
+                resultsList.appendChild(resultElement);
+            });
+        }
+    </script>
+
+</body>
+</html>
