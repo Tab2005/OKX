@@ -1,11 +1,12 @@
 # Render.com 部署藍圖
-# 版本: 1.2 (最終修正版)
+# 版本: 1.3 (最終安全修正版)
 
 services:
   # 服務一：Redis 資料庫
   - name: redis-broker
     type: redis
     plan: free
+    ipAllowList: [] # <--- 新增這一行，空的列表代表允許所有連線
 
   # 服務二：Celery 背景工人
   - name: celery-worker
@@ -23,7 +24,7 @@ services:
       - key: GEMINI_API_KEY
         sync: false
 
-  # 服務三：Flask Web 服務 (現在它同時負責 API 和前端網頁)
+  # 服務三：Flask Web 服務
   - name: web-service
     type: web
     plan: free
@@ -38,3 +39,4 @@ services:
           property: connectionString
       - key: GEMINI_API_KEY
         sync: false
+        
