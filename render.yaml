@@ -1,36 +1,21 @@
 # Render.com 部署藍圖
-# 版本: 1.3 (最終安全修正版)
+# 版本: 1.4 (最終合併版)
 
 services:
   # 服務一：Redis 資料庫
   - name: redis-broker
     type: redis
     plan: free
-    ipAllowList: [] # <--- 新增這一行，空的列表代表允許所有連線
+    ipAllowList: []
 
-  # 服務二：Celery 背景工人
-  - name: celery-worker
-    type: worker
-    plan: free
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: celery -A tasks.celery_app worker -l info -P eventlet
-    envVars:
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: redis-broker
-          property: connectionString
-      - key: GEMINI_API_KEY
-        sync: false
-
-  # 服務三：Flask Web 服務
+  # 服務二：Web 服務 (現在它同時負責 API 和 Worker)
   - name: web-service
     type: web
-    plan: free
+    plan: free # 免費方案的 Web Service
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    # 使用 honcho 根據 Procfile 啟動所有進程
+    startCommand: honcho start
     envVars:
       - key: REDIS_URL
         fromService:
